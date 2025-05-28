@@ -10,7 +10,7 @@ import logging
 from retrying import retry
 import pymysql.err
 import uuid
-from .urls import blueprints
+from .urls import blueprints  # 実行時にurls.pyが同階層に必要
 
 # 環境変数を読み込み
 load_dotenv()
@@ -24,11 +24,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 application = Flask(__name__, static_folder='static', template_folder='templates')
-application.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://DEATHBILL911:Deathbill911@127.0.0.1:3306/deathbill_db'
-
-
-# CORS設定（開発用にワイルドカード、本番ではdeathbill.earthに制限）
-CORS(application, resources={r"/api/*": {"origins": "*"}})
 
 # 環境変数のチェック
 required_env_vars = ['DB_USERNAME', 'DB_PASSWORD', 'DB_HOST', 'DB_NAME']
@@ -51,6 +46,10 @@ application.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True,
     'connect_args': {'connect_timeout': 10}
 }
+
+# CORS設定（開発用にワイルドカード、本番ではドメインに制限）
+CORS(application, resources={r"/api/*": {"origins": "*"}})
+
 db = SQLAlchemy(application)
 
 # アップロードフォルダ設定
