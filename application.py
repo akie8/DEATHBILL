@@ -10,7 +10,7 @@ import logging
 from retrying import retry
 import pymysql.err
 import uuid
-from urls import blueprints
+from .urls import blueprints
 
 # 環境変数を読み込み
 load_dotenv()
