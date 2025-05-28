@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DEATHBILL App</title>
+  <!-- Flaskのurl_forで静的ファイルパスを保証、XserverのNginxで配信 -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Times New Roman', Times, serif; font-size: 16px; }
+    body { background-color: #000; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
+    .app-container { width: 375px; height: 667px; background-color: #000; border: 1px solid #fff; border-radius: 25px; overflow: hidden; position: relative; contain: strict; clip-path: inset(0 0 0 0); }
+    .status-bar { height: 44px; background-color: #000; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; color: #c00; font-weight: bold; }
+    .status-bar-title { font-size: 24px; letter-spacing: 2px; background: linear-gradient(45deg, #c00, #ff4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent; cursor: pointer; }
+    .tab-bar-top { display: flex; gap: 10px; align-items: center; }
+    .tab { color: #999; cursor: pointer; transition: color 0.2s; }
+    .tab.active { color: #c00; }
+    .tab-icon { font-size: 24px; transition: transform 0.2s; }
+    .tab:nth-child(1) .tab-icon { text-shadow: 0 0 5px rgba(255, 255, 255, 0.5); }
+    .tab:nth-child(1):hover .tab-icon { transform: scale(1.2); text-shadow: 0 0 10px rgba(255, 255, 255, 0.8); }
+    .tab:nth-child(1).active .tab-icon { background: linear-gradient(45deg, #ffcc00, #ff6600); -webkit-background-clip: text; background-clip: text; text-shadow: 0 0 15px rgba(255, 204, 0, 0.8), 0 0 20px rgba(255, 102, 0, 0.5); }
+    .tab:nth-child(2).active .tab-icon { color: #0ff; background: linear-gradient(45deg, #00f, #ff0); -webkit-background-clip: text; background-clip: text; text-shadow: 0 0 10px rgba(0, 255, 255, 0.8), 0 0 20px rgba(255, 255, 0, 0.5); }
+    .content { height: calc(100% - 44px); overflow-y: auto; padding: 15px; background-color: #000; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .content::-webkit-scrollbar { display: none; }
+    .page { display: none; background-color: #000; overflow-y: auto; scrollbar-width: none; position: relative; }
+    .page::-webkit-scrollbar { display: none; }
+    .page.active { display: block; }
+    .proposal-item { padding: 12px 0; background: transparent; cursor: pointer; }
+    .proposal-item:hover { background-color: rgba(255, 255, 255, 0.1); }
+    .proposal-title { font-weight: bold; margin-bottom: 5px; color: #7CFC00; }
+    .proposal-stats { font-size: 14px; color: #aaa; display: flex; gap: 10px; }
+    .support-text { color: #7CFC00; }
+    .against-text { color: #FF0000; }
+    .bill-detail { padding-bottom: 60px; }
+    .bill-title { font-size: 20px; color: #c00; margin-bottom: 10px; background: linear-gradient(45deg, #c00, #ff4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .bill-stats { display: flex; gap: 20px; margin-bottom: 15px; }
+    .bill-stats div { cursor: pointer; }
+    .bill-description { line-height: 1.6; margin-bottom: 20px; color: #7CFC00; padding-bottom: 10px; }
+    .bill-file { margin-bottom: 20px; }
+    .bill-file img { max-width: 100px; max-height: 100px; object-fit: contain; }
+    .bill-file a { color: #c00; text-decoration: none; }
+    .bill-references { line-height: 1.6; margin-bottom: 20px; color: #7CFC00; border-bottom: 1px solid #999; padding-bottom: 10px; }
+    .section-title { color: #c00; margin: 15px 0 10px; font-weight: bold; cursor: pointer; background: linear-gradient(45deg, #c00, #ff4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 16px; }
+    .comment { display: flex; padding: 5px 0; color: #7CFC00; font-family: 'Courier New', monospace; cursor: pointer; }
+    .comment-username { margin-right: 10px; font-weight: bold; color: #888; }
+    .comment-content-wrapper { max-width: calc(100% - 10px); }
+    .comment-content { margin-bottom: 2px; word-wrap: break-word; color: #7CFC00; }
+    .comment-meta { display: flex; flex-direction: row; align-items: center; gap: 10px; margin-top: 5px; font-size: 12px; color: #999; }
+    .comment-meta span { line-height: 1; cursor: pointer; }
+    .comment-meta .count { font-size: 12px; color: #999; vertical-align: middle; }
+    .comment-file { margin-top: 10px; }
+    .comment-file img { max-width: 100px; max-height: 100px; object-fit: contain; }
+    .comment-file a { color: #c00; text-decoration: none; }
+    .reply-form { display: none; position: relative; background-color: #333; padding: 10px; margin-top: 10px; margin-left: 20px; border: none; outline: none; }
+    .reply-form textarea { width: 100%; height: 150px; padding: 10px; background-color: #333; border: none; outline: none; color: #7CFC00; font-weight: bold; resize: none; }
+    .reply-form textarea:focus { outline: none; }
+    .reply-form .submit-reply { position: absolute; bottom: 10px; right: 10px; color: #7CFC00; font-size: 24px; cursor: pointer; }
+    .reply-form .submit-reply:hover { filter: brightness(1.2); }
+    #image-input { display: none; }
+    .image-label { color: #7CFC00; cursor: pointer; font-size: 18px; }
+    #comment-form { display: none; position: absolute; bottom: 60px; left: 15px; width: calc(100% - 30px); background-color: #333; padding: 5px; z-index: 20; border: none; outline: none; }
+    #comment-form textarea { width: 100%; height: 150px; padding: 5px; background-color: #333; border: none; outline: none; color: #7CFC00; font-weight: bold; resize: none; }
+    #comment-form textarea:focus { outline: none; }
+    #comment-form input[type="file"] { display: none; }
+    #comment-file-label { color: #7CFC00; cursor: pointer; font-size: 18px; margin-right: 5px; }
+    .comment-form-controls { position: absolute; bottom: 5px; right: 5px; display: flex; align-items: center; }
+    .submit-comment { color: #7CFC00; font-size: 24px; cursor: pointer; }
+    .submit-comment:hover { filter: brightness(1.2); }
+    #tweet-form { display: none; position: absolute; bottom: 50px; left: 0; width: 100%; background-color: #222; z-index: 20; padding: 5px; border: none; outline: none; }
+    #tweet-input { width: 100%; height: 150px; padding: 5px; background-color: #222; border: none; outline: none; color: #7CFC00; font-family: 'Courier New', monospace; resize: none; overflow-y: auto; scrollbar-width: none; }
+    #tweet-input::-webkit-scrollbar { display: none; }
+    #tweet-input:focus { outline: none; }
+    #tweet-form input[type="file"] { display: none; }
+    #tweet-file-label { color: #7CFC00; cursor: pointer; font-size: 18px; margin-right: 5px; }
+    .tweet-form-controls { display: flex; justify-content: flex-end; align-items: center; margin-top: 10px; }
+    .submit-tweet { color: #7CFC00; font-size: 24px; cursor: pointer; }
+    .submit-tweet:hover { filter: brightness(1.2); }
+    .form-buttons { display: flex; justify-content: flex-end; gap: 10px; }
+    .submit-button { padding: 8px 16px; background-color: #c00; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+    #tweets-list { max-height: calc(100% - 50px); overflow-y: auto; padding: 10px 0; scrollbar-width: none; }
+    #tweets-list::-webkit-scrollbar { display: none; }
+    .tweet { display: flex; padding: 5px 0; color: #7CFC00; font-family: 'Courier New', monospace; cursor: pointer; }
+    .tweet-username { margin-right: 10px; font-weight: bold; color: #888; }
+    .tweet-content-wrapper { max-width: calc(100% - 10px); }
+    .tweet-content { margin-bottom: 2px; word-wrap: break-word; color: #7CFC00; }
+    .tweet-meta { display: flex; flex-direction: row; align-items: center; gap: 10px; margin-top: 5px; font-size: 12px; color: #999; }
+    .tweet-meta span { line-height: 1; cursor: pointer; }
+    .tweet-meta .count { font-size: 12px; color: #999; vertical-align: middle; }
+    .tweet-comment-form { display: none; position: relative; background-color: #333; padding: 5px; margin-top: 5px; }
+    .tweet-comment-form textarea { width: 100%; height: 100px; padding: 5px; background-color: #333; border: none; color: #7CFC00; font-weight: bold; resize: none; }
+    .tweet-comment-form textarea:focus { outline: none; }
+    .tweet-comment-form .submit-tweet-comment { position: absolute; bottom: 5px; right: 5px; color: #7CFC00; font-size: 24px; cursor: pointer; }
+    .tweet-comment-form .submit-tweet-comment:hover { filter: brightness(1.2); }
+    .tweet-comments { display: none; padding-left: 10px; margin-top: 10px; color: #7CFC00; font-size: 14px; }
+    .tweet-comment { display: flex; align-items: flex-start; gap: 5px; }
+    .tweet-comment-content { color: #7CFC00; word-wrap: break-word; max-width: calc(100% - 30px); cursor: pointer; }
+    .tweet-file { margin-top: 10px; }
+    .tweet-file img { max-width: 100px; max-height: 100px; object-fit: contain; }
+    .action-buttons { position: absolute; bottom: 15px; right: 15px; display: none; gap: 10px; z-index: 10; }
+    .action-buttons.active { display: flex; }
+    .plus-button { font-size: 30px; color: #fff; cursor: pointer; }
+    .story-text { line-height: 1.2; margin-bottom: 5px; color: #7CFC00; }
+    #rules-page ul li { color: #7CFC00; }
+    #rules-page ul li span { color: #999; }
+    ul { list-style: none; }
+    ul li { margin-bottom: 5px; }
+    #main-page { padding-top: 10px; }
+    .info-evidence-item { margin-top: 10px; }
+    .info-evidence-item img { max-width: 100px; max-height: 100px; object-fit: contain; }
+    .tweets-description { font-size: 14px; color: #ccc; margin-bottom: 10px; }
+    .comment-replies { display: none; padding-left: 10px; margin-top: 10px; color: #7CFC00; font-size: 14px; }
+    .comment-comment-form { display: none; position: relative; background-color: #333; padding: 5px; margin-top: 5px; }
+    .comment-comment-form textarea { width: 100%; height: 100px; padding: 5px; background-color: #333; border: none; color: #7CFC00; font-weight: bold; resize: none; }
+    .comment-comment-form textarea:focus { outline: none; }
+    .comment-comment-form .submit-comment-comment { position: absolute; bottom: 5px; right: 5px; color: #7CFC00; font-size: 24px; cursor: pointer; }
+    .comment-comment-form .submit-comment-comment:hover { filter: brightness(1.2); }
+    #search-bar { display: none; width: 100%; padding: 8px; margin-bottom: 10px; background-color: #222; border: 1px solid #c00; color: #fff; font-family: 'Courier New', monospace; }
+    #search-bar:focus { outline: none; background-color: #333; border: 1px solid #ff4444; }
+    #search-results { display: none; padding: 10px 0; overflow-y: auto; scrollbar-width: none; }
+    #search-results::-webkit-scrollbar { display: none; }
+    .search-result-title { font-weight: bold; color: #c00; margin: 10px 0 5px; background: linear-gradient(45deg, #c00, #ff4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <div class="status-bar">
+      <div class="status-bar-title" id="status-bar-title" role="button" tabindex="0" aria-label="Toggle Rules Page" onclick="toggleRulesPage()" onkeypress="if(event.key === 'Enter' || event.key === ' ') toggleRulesPage()">DEATHBILL</div>
+      <div class="tab-bar-top">
+        <div class="tab active" role="button" tabindex="0" aria-label="Show Main Page" onclick="showPage('main-page')" onkeypress="if(event.key === 'Enter' || event.key === ' ') showPage('main-page')">
+          <span class="tab-icon">📜</span>
+        </div>
+        <div class="tab" role="button" tabindex="0" aria-label="Show Tweets Page" onclick="showPage('tweets-page')" onkeypress="if(event.key === 'Enter' || event.key === ' ') showPage('tweets-page')">
+          <span class="tab-icon">🗑️</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+      <div id="main-page" class="page active">
+        <!-- 法案リストはJSで動的生成 -->
+      </div>
+
+      <div id="bill-detail-page" class="page bill-detail">
+        <div class="bill-title" id="detail-title"></div>
+        <div class="bill-stats">
+          <div role="button" tabindex="0" aria-label="Vote Support" onclick="vote('support')" onkeypress="if(event.key === 'Enter' || event.key === ' ') vote('support')">
+            <span class="support-text" id="detail-support"></span> Support
+          </div>
+          <div role="button" tabindex="0" aria-label="Vote Against" onclick="vote('against')" onkeypress="if(event.key === 'Enter' || event.key === ' ') vote('against')">
+            <span class="against-text" id="detail-against"></span> Against
+          </div>
+        </div>
+        <div class="bill-description" id="detail-description"></div>
+        <div class="bill-file" id="detail-file"></div>
+        <div class="bill-references" id="detail-references"></div>
+        <div class="section-title" role="button" tabindex="0" aria-label="Toggle Comment Form" onclick="toggleCommentForm()" onkeypress="if(event.key === 'Enter' || event.key === ' ') toggleCommentForm()">COMMENTS</div>
+        <div id="info-evidence"></div>
+        <div id="detail-comments"></div>
+      </div>
+
+      <div id="comment-form" class="page">
+        <textarea id="new-comment" placeholder="Add a comment or upload a photo..." aria-label="New Comment"></textarea>
+        <div class="comment-form-controls">
+          <label for="comment-file" id="comment-file-label" aria-label="Upload Comment Photo">＋</label>
+          <input type="file" id="comment-file" accept="image/jpeg,image/png,image/gif" aria-label="Upload Photo">
+          <span class="submit-comment" role="button" tabindex="0" aria-label="Submit Comment" onclick="submitComment()" onkeypress="if(event.key === 'Enter' || event.key === ' ') { submitComment(); event.stopPropagation(); }">✓</span>
+        </div>
+      </div>
+
+      <div id="tweets-page" class="page">
+        <div class="tweets-description">What's the problem? Share tweets exposing trashy policies by pentagonal cone members & politicians & Scam wizard!</div>
+        <div id="tweets-list"></div>
+      </div>
+
+      <div id="tweet-form" class="page">
+        <textarea id="tweet-input" placeholder="Expose a politician's trashy policy!" aria-label="New Tweet"></textarea>
+        <div class="tweet-form-controls">
+          <label for="tweet-file" id="tweet-file-label" aria-label="Upload Tweet Photo">＋</label>
+          <input type="file" id="tweet-file" accept="image/jpeg,image/png,image/gif" aria-label="Upload Photo">
+          <span class="submit-tweet" role="button" tabindex="0" aria-label="Submit Tweet" onclick="submitTweet()" onkeypress="if(event.key === 'Enter' || event.key === ' ') { submitTweet(); event.stopPropagation(); }">✓</span>
+        </div>
+      </div>
+
+      <div id="rules-page" class="page">
+        <input type="text" id="search-bar" placeholder="Search…" aria-label="Search">
+        <div id="search-results"></div>
+        <div class="section-title">STORY</div>
+        <p class="story-text">世界中の大掃除をするため</p>
+        <p class="story-text">突如として発動された新たなルール</p>
+        <p class="story-text">「DEATHBILL」</p>
+        <p class="story-text">黒幕は今まで散々私服を肥やした</p>
+        <p class="story-text">国民を見捨て売国をした</p>
+        <p class="story-text">裏で法案を操った</p>
+        <p class="story-text">代理議員を立て影武者として利用した</p>
+        <p class="story-text">「大掃除にはDEATHBILLが必要だ！」</p>
+        <p class="story-text">今ここに自らの命を懸けた恐るべき法案を提示する</p>
+        <p class="story-text">地獄へと続く門の前で右往左往する魂</p>
+        <p class="story-text">法の裁きによって焼かれる魂</p>
+        <p class="story-text">声なき叫びは虚空へと呑まれ絶望の闇に沈む</p>
+        <p class="story-text">過去の栄光も未来の安寧も砕け散る</p>
+        <p class="story-text">ここに救いなど存在しない</p>
+        <p class="story-text">ひとつひとつの裁きが一時代の終焉を告げる鐘の音となる</p>
+        <p class="story-text">この世のカラクリを暴く時が来た</p>
+        <p class="story-text">魂の闇に審判を下す時が来た</p>
+        <p class="story-text">さぁ始めようか</p>
+
+        <div class="section-title">THE RULES</div>
+        <ul>
+          <li>聞く耳を持つ (走る前に転ぶなよ？)</li>
+          <li>大惨事が起きる前に防げ！</li>
+          <li>頭脳で導け！</li>
+          <li>魔の道を選ぶな。光が当たる道を行け！</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="action-buttons" id="action-buttons">
+      <div class="plus-button" role="button" tabindex="0" aria-label="Add Content" onclick="handlePlusIcon()" onkeypress="if(event.key === 'Enter' || event.key === ' ') handlePlusIcon()">➕</div>
+    </div>
+  </div>
+
+  <script>
+    const DEBUG = false; // Xserver本番ではfalse
+    let currentBillId = null;
+    const votedBills = new Set();
+    const retweetedTweets = new Set();
+    const likedTweets = new Set();
+    const likedComments = new Set();
+    const pages = ['main-page', 'tweets-page', 'bill-detail-page'];
+    let currentPageIndex = 0;
+
+    // XSS対策のための正しいエスケープ関数
+    function escapeHtml(text) {
+      if (!text) return '';
+      const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+      };
+      return text.replace(/[&<>"']/g, m => map[m]);
+    }
+
+    function getElapsedTime(timestamp) {
+      const now = Date.now();
+      const diff = now - timestamp;
+      const seconds = Math.floor(diff / 1000);
+      const minutes = Math.floor(seconds / 60);
+      const hours = Math.floor(minutes / 60);
+      const days = Math.floor(hours / 24);
+      if (days > 0) return `${days}d ago`;
+      if (hours > 0) return `${hours}h ago`;
+      if (minutes > 0) return `${minutes}m ago`;
+      return `${seconds}s ago`;
+    }
+
+    async function fetchWithTimeout(url, options = {}, timeout = 10000) {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeout);
+      try {
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(id);
+        return response;
+      } catch (error) {
+        clearTimeout(id);
+        if (error.name === 'AbortError') {
+          throw new Error('Request timed out');
+        }
+        throw error;
+      }
+    }
+
+    async function fetchBills() {
+      try {
+        const response = await fetchWithTimeout('/api/bills');
+        if (!response.ok) throw new Error(`Failed to fetch bills: ${response.status}`);
+        return await response.json();
+      } catch (error) {
+        if (DEBUG) console.error('Error fetching bills:', error);
+        document.getElementById('main-page').innerHTML = '<div style="color: #7CFC00;">Failed to load bills. Please try again later.</div>';
+        return [];
+      }
+    }
+
+    async function fetchBill(billId) {
+      try {
+        const response = await fetchWithTimeout(`/api/bills/${billId}`);
+        if (!response.ok) throw new Error(`Failed to fetch bill: ${response.status}`);
+        return await response.json();
+      } catch (error) {
+        if (DEBUG) console.error('Error fetching bill:', error);
+        document.getElementById('bill-detail-page').innerHTML = '<div style="color: #7CFC00;">Failed to load bill details. Please try again.</div>';
+        return null;
+      }
+    }
+
+    async function fetchTweets() {
+      try {
+        const response = await fetchWithTimeout('/api/tweets');
+        if (!response.ok) throw new Error(`Failed to fetch tweets: ${response.status}`);
+        return await response.json();
+      } catch (error) {
+        if (DEBUG) console.error('Error fetching tweets:', error);
+        document.getElementById('tweets-list').innerHTML = '<div style="color: #7CFC00;">Failed to load tweets. Please try again later.</div>';
+        return [];
+      }
+    }
+
+    // クライアント側で仮の検索機能（/api/searchが未実装）
+    async function searchContent() {
+      const searchTerm = document.getElementById('search-bar').value.toLowerCase().trim();
+      const searchResults = document.getElementById('search-results');
+      searchResults.innerHTML = '';
+      if (!searchTerm) {
+        searchResults.style.display = 'none';
+        return;
+      }
+      searchResults.style.display = 'block';
+      try {
+        const bills = await fetchBills();
+        const tweets = await fetchTweets();
+        const filteredBills = bills.filter(bill => 
+          bill.title.toLowerCase().includes(searchTerm) || 
+          bill.description.toLowerCase().includes(searchTerm)
+        );
+        const filteredTweets = tweets.filter(tweet => 
+          tweet.content.toLowerCase().includes(searchTerm)
+        );
+        if (filteredBills.length > 0) {
+          const billSection = document.createElement('div');
+          billSection.innerHTML = '<div class="search-result-title">Bills</div>';
+          filteredBills.forEach(bill => {
+            const item = document.createElement('div');
+            item.className = 'proposal-item';
+            item.setAttribute('role', 'button');
+            item.setAttribute('tabindex', '0');
+            item.setAttribute('aria-label', `View ${escapeHtml(bill.title)}`);
+            item.onclick = () => showBillDetail(bill.id);
+            item.onkeypress = (e) => { if (e.key === 'Enter' || e.key === ' ') showBillDetail(bill.id); };
+            item.innerHTML = `
+              <div class="proposal-title">${escapeHtml(bill.title)}</div>
+              <div class="proposal-stats">
+                <span class="support-text">${bill.support.toLocaleString()}</span>
+                <span class="against-text">${bill.against.toLocaleString()}</span>
+              </div>
+            `;
+            billSection.appendChild(item);
+          });
+          searchResults.appendChild(billSection);
+        }
+        if (filteredTweets.length > 0) {
+          const tweetSection = document.createElement('div');
+          tweetSection.innerHTML = '<div class="search-result-title">Tweets</div>';
+          filteredTweets.forEach(tweet => {
+            const tweetDiv = document.createElement('div');
+            tweetDiv.className = 'tweet';
+            tweetDiv.setAttribute('role', 'button');
+            tweetDiv.setAttribute('tabindex', '0');
+            tweetDiv.setAttribute('aria-label', `View tweet by ${escapeHtml(tweet.username)}`);
+            tweetDiv.onclick = () => toggleTweetComments(tweet.id);
+            tweetDiv.onkeypress = (e) => { if (e.key === 'Enter' || e.key === ' ') toggleTweetComments(tweet.id); };
+            let fileHtml = tweet.file ? `<div class="tweet-file"><img src="${escapeHtml(tweet.file.url)}" alt="Uploaded image"></div>` : '';
+            tweetDiv.innerHTML = `
+              <span class="tweet-username">${escapeHtml(tweet.username)}</span>
+              <div class="tweet-content-wrapper">
+                <span class="tweet-content">${escapeHtml(tweet.content)}</span>
+                ${fileHtml}
+                <div class="tweet-meta">
+                  <span onclick="toggleTweetCommentForm(${tweet.id}); event.stopPropagation()" aria-label="Comment on tweet">Comment <span class="count">${tweet.comments.length}</span></span>
+                  <span onclick="goodTweet(${tweet.id}); event.stopPropagation()" aria-label="Support tweet">Support <span class="count">${tweet.goodCount}</span></span>
+                  <span onclick="retweetTweet(${tweet.id}); event.stopPropagation()" aria-label="Repeat tweet">Repeat <span class="count">${tweet.retweetCount}</span></span>
+                  <span>${getElapsedTime(tweet.timestamp)}</span>
+                </div>
+                <div class="tweet-comment-form" id="tweet-comment-form-${tweet.id}">
+                  <textarea placeholder="Comment..." aria-label="Tweet Comment"></textarea>
+                  <span class="submit-tweet-comment" role="button" tabindex="0" aria-label="Submit Tweet Comment" onclick="submitTweetComment(${tweet.id}); event.stopPropagation()">✓</span>
+                </div>
+                <div class="tweet-comments" id="tweet-comments-${tweet.id}">
+                  ${tweet.comments.map(comment => `
+                    <div class="tweet-comment">
+                      <span class="comment-username">👤</span>
+                      <span class="tweet-comment-content">${escapeHtml(comment.content)}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            `;
+            tweetSection.appendChild(tweetDiv);
+          });
+          searchResults.appendChild(tweetSection);
+        }
+        if (filteredBills.length === 0 && filteredTweets.length === 0) {
+          searchResults.innerHTML = '<div style="color: #7CFC00;">No results found.</div>';
+        }
+      } catch (error) {
+        if (DEBUG) console.error('Error searching:', error);
+        searchResults.innerHTML = '<div style="color: #7CFC00;">Search failed. Please try again.</div>';
+      }
+    }
+
+    function showPage(pageId) {
+      if (DEBUG) console.log('showPage called:', pageId);
+      document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
+      document.getElementById(pageId).classList.add('active');
+      document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+      const tab = document.querySelector(`.tab[onclick="showPage('${pageId}')"]`);
+      if (tab) tab.classList.add('active');
+      document.getElementById('status-bar-title').textContent = 'DEATHBILL';
+      document.getElementById('tweet-form').style.display = 'none';
+      document.getElementById('comment-form').style.display = 'none';
+      document.getElementById('search-bar').style.display = 'none';
+      document.getElementById('search-results').style.display = 'none';
+      const actionButtons = document.getElementById('action-buttons');
+      if (pageId === 'main-page') {
+        actionButtons.classList.remove('active');
+      } else {
+        actionButtons.classList.add('active');
+      }
+      currentPageIndex = pages.indexOf(pageId);
+      if (pageId === 'tweets-page') {
+        renderTweets();
+      } else if (pageId === 'main-page') {
+        renderMainPage();
+      }
+    }
+
+    function toggleRulesPage() {
+      const rulesPage = document.getElementById('rules-page');
+      const searchBar = document.getElementById('search-bar');
+      if (rulesPage.classList.contains('active')) {
+        showPage(pages[currentPageIndex]);
+        searchBar.style.display = 'none';
+        document.getElementById('search-results').style.display = 'none';
+      } else {
+        document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
+        rulesPage.classList.add('active');
+        searchBar.style.display = 'block';
+        document.getElementById('search-results').style.display = 'none';
+        searchContent();
+        searchBar.focus();
+      }
+    }
+
+    async function showBillDetail(billId) {
+      currentBillId = billId;
+      const bill = await fetchBill(billId);
+      if (!bill) return;
+      document.getElementById('detail-title').textContent = escapeHtml(bill.title);
+      document.getElementById('detail-support').textContent = bill.support.toLocaleString();
+      document.getElementById('detail-against').textContent = bill.against.toLocaleString();
+      document.getElementById('detail-description').innerHTML = escapeHtml(bill.description);
+      document.getElementById('detail-file').innerHTML = bill.evidence.map(item => 
+        item.type.startsWith('image/') ? 
+        `<img src="${escapeHtml(item.url)}" alt="Evidence image">` : 
+        `<a href="${escapeHtml(item.url)}" download="${escapeHtml(item.name)}">${escapeHtml(item.name)}</a>`
+      ).join('');
+      document.getElementById('detail-references').innerHTML = '';
+      renderComments(bill.comments, 'detail-comments');
+      renderEvidence(bill.evidence, 'info-evidence');
+      showPage('bill-detail-page');
+    }
+
+    async function vote(type) {
+      if (votedBills.has(currentBillId)) return;
+      try {
+        const response = await fetchWithTimeout(`/api/bills/${currentBillId}/vote`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type })
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          if (DEBUG) console.error('Vote error:', error);
+          document.getElementById('detail-description').innerHTML += '<div style="color: #7CFC00;">Failed to vote. Please try again.</div>';
+          return;
+        }
+        const bill = await response.json();
+        votedBills.add(currentBillId);
+        document.getElementById('detail-support').textContent = bill.support.toLocaleString();
+        document.getElementById('detail-against').textContent = bill.against.toLocaleString();
+        renderMainPage();
+      } catch (error) {
+        if (DEBUG) console.error('Error voting:', error);
+        document.getElementById('detail-description').innerHTML += '<div style="color: #7CFC00;">Failed to vote. Please try again.</div>';
+      }
+    }
+
+    function toggleCommentForm() {
+      if (DEBUG) console.log('toggleCommentForm called');
+      const form = document.getElementById('comment-form');
+      form.style.display = form.style.display === 'block' ? 'none' : 'block';
+      if (form.style.display === 'block') {
+        document.getElementById('new-comment').focus();
+      }
+    }
+
+    async function submitComment() {
+      if (DEBUG) console.log('submitComment called');
+      const commentText = document.getElementById('new-comment').value.trim();
+      const fileInput = document.getElementById('comment-file');
+      if (!commentText && !fileInput.files.length) return;
+      if (fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        if (file.size > 5 * 1024 * 1024) {
+          document.getElementById('detail-comments').innerHTML += '<div style="color: #7CFC00;">File too large (max 5MB).</div>';
+          return;
+        }
+        if (!['image/jpeg', 'image/png', 'image/gif'].includes(file.type)) {
+          document.getElementById('detail-comments').innerHTML += '<div style="color: #7CFC00;">Invalid file type (JPEG, PNG, GIF only).</div>';
+          return;
+        }
+      }
+      const formData = new FormData();
+      formData.append('content', commentText);
+      if (fileInput.files.length > 0) {
+        formData.append('file', fileInput.files[0]);
+      }
+      try {
+        const response = await fetchWithTimeout(`/api/bills/${currentBillId}/comments`, {
+          method: 'POST',
+          body: formData
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          if (DEBUG) console.error('Comment error:', error);
+          document.getElementById('detail-comments').innerHTML += '<div style="color: #7CFC00;">Failed to post comment. Please try again.</div>';
+          return;
+        }
+        document.getElementById('new-comment').value = '';
+        fileInput.value = '';
+        toggleCommentForm();
+        showBillDetail(currentBillId);
+      } catch (error) {
+        if (DEBUG) console.error('Error submitting comment:', error);
+        document.getElementById('detail-comments').innerHTML += '<div style="color: #7CFC00;">Failed to post comment. Please try again.</div>';
+      }
+    }
+
+    function renderComments(comments, containerId) {
+      if (DEBUG) console.log('renderComments called, comments:', comments);
+      const container = document.getElementById(containerId);
+      container.innerHTML = '';
+      comments.forEach(comment => {
+        const commentId = comment.id || `${containerId}-${Math.random().toString(36).substr(2, 9)}`;
+        const commentDiv = document.createElement('div');
+        commentDiv.className = 'comment';
+        commentDiv.setAttribute('role', 'button');
+        commentDiv.setAttribute('tabindex', '0');
+        commentDiv.setAttribute('aria-label', `View replies for comment`);
+        commentDiv.setAttribute('onclick', `toggleCommentReplies('${commentId}'); event.stopPropagation()`);
+        commentDiv.setAttribute('onkeypress', `if(event.key === 'Enter' || event.key === ' ') toggleCommentReplies('${commentId}'); event.stopPropagation()`);
+        let fileHtml = comment.file ? 
+          (comment.file.type.startsWith('image/') ? 
+          `<div class="comment-file"><img src="${escapeHtml(comment.file.url)}" alt="Uploaded evidence"></div>` : 
+          `<div class="comment-file"><a href="${escapeHtml(comment.file.url)}" download="${escapeHtml(comment.file.name)}">${escapeHtml(comment.file.name)}</a></div>`) : '';
+        commentDiv.innerHTML = `
+          <span class="comment-username">👤</span>
+          <div class="comment-content-wrapper">
+            <span class="comment-content">${escapeHtml(comment.content)}</span>
+            ${fileHtml}
+            <div class="comment-meta">
+              <span onclick="toggleCommentCommentForm('${commentId}'); event.stopPropagation()" aria-label="Comment on this comment">Comment <span class="count">${comment.replies.length}</span></span>
+              <span onclick="goodComment('${commentId}'); event.stopPropagation()" aria-label="Support this comment">Support <span class="count">${comment.goodCount}</span></span>
+              <span>${getElapsedTime(comment.timestamp)}</span>
+            </div>
+            <div class="comment-comment-form" id="comment-comment-form-${commentId}">
+              <textarea placeholder="Comment..." aria-label="Comment Reply"></textarea>
+              <span class="submit-comment-comment" role="button" tabindex="0" aria-label="Submit Comment Reply" onclick="submitCommentComment('${commentId}'); event.stopPropagation()">✓</span>
+            </div>
+            <div class="comment-replies" id="comment-replies-${commentId}">
+              ${comment.replies.map(reply => `
+                <div class="tweet-comment">
+                  <span class="comment-username">👤</span>
+                  <span class="tweet-comment-content">${escapeHtml(reply.content)}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+        container.appendChild(commentDiv);
+      });
+    }
+
+    function toggleCommentReplies(commentId) {
+      if (DEBUG) console.log('toggleCommentReplies called:', commentId);
+      const replies = document.getElementById(`comment-replies-${commentId}`);
+      replies.style.display = replies.style.display === 'block' ? 'none' : 'block';
+    }
+
+    async function toggleCommentCommentForm(commentId) {
+      if (DEBUG) console.log('toggleCommentCommentForm called:', commentId);
+      const form = document.getElementById(`comment-comment-form-${commentId}`);
+      form.style.display = form.style.display === 'block' ? 'none' : 'block';
+      if (form.style.display === 'block') {
+        form.querySelector('textarea').focus();
+      }
+    }
+
+    async function submitCommentComment(commentId) {
+      if (DEBUG) console.log('submitCommentComment called:', commentId);
+      const form = document.getElementById(`comment-comment-form-${commentId}`);
+      const commentText = form.querySelector('textarea').value.trim();
+      if (!commentText) return;
+      try {
+        const response = await fetchWithTimeout(`/api/bills/${currentBillId}/comments/${commentId}/replies`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: commentText })
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          if (DEBUG) console.error('Reply error:', error);
+          document.getElementById('detail-comments').innerHTML += '<div style="color: #7CFC00;">Failed to post reply. Please try again.</div>';
+          return;
+        }
+        form.querySelector('textarea').value = '';
+        form.style.display = 'none';
+        showBillDetail(currentBillId);
+      } catch (error) {
+        if (DEBUG) console.error('Error submitting reply:', error);
+        document.getElementById('detail-comments').innerHTML += '<div style="color: #7CFC00;">Failed to post reply. Please try again.</div>';
+      }
+    }
+
+    async function goodComment(commentId) {
+      if (DEBUG) console.log('goodComment called:', commentId);
+      const commentKey = `${currentBillId}-${commentId}`;
+      if (likedComments.has(commentKey)) return;
+      try {
+        const response = await fetchWithTimeout(`/api/bills/${currentBillId}/comments/${commentId}/good`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          if (DEBUG) console.error('Good comment error:', error);
+          document.getElementById('detail-comments').innerHTML += '<div style="color: #7CFC00;">Failed to like comment. Please try again.</div>';
+          return;
+        }
+        likedComments.add(commentKey);
+        showBillDetail(currentBillId);
+      } catch (error) {
+        if (DEBUG) console.error('Error liking comment:', error);
+        document.getElementById('detail-comments').innerHTML += '<div style="color: #7CFC00;">Failed to like comment. Please try again.</div>';
+      }
+    }
+
+    function renderEvidence(evidence, containerId) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = '';
+      evidence.forEach(item => {
+        const evidenceDiv = document.createElement('div');
+        evidenceDiv.className = 'info-evidence-item';
+        evidenceDiv.innerHTML = item.type.startsWith('image/') ? 
+          `<img src="${escapeHtml(item.url)}" alt="Evidence image">` : 
+          `<a href="${escapeHtml(item.url)}" download="${escapeHtml(item.name)}">${escapeHtml(item.name)}</a>`;
+        container.appendChild(evidenceDiv);
+      });
+    }
+
+    function toggleTweetForm() {
+      if (DEBUG) console.log('toggleTweetForm called');
+      const form = document.getElementById('tweet-form');
+      form.style.display = form.style.display === 'block' ? 'none' : 'block';
+      if (form.style.display === 'block') {
+        document.getElementById('tweet-input').focus();
+      }
+    }
+
+    function handlePlusIcon() {
+      if (DEBUG) console.log('handlePlusIcon called, currentPageIndex:', currentPageIndex);
+      if (currentPageIndex === 1) {
+        toggleTweetForm();
+      } else if (currentPageIndex === 2) {
+        toggleCommentForm();
+      }
+    }
+
+    async function submitTweet() {
+      if (DEBUG) console.log('submitTweet called');
+      const tweetText = document.getElementById('tweet-input').value.trim();
+      const fileInput = document.getElementById('tweet-file');
+      if (!tweetText && !fileInput.files.length) return;
+      if (fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        if (file.size > 5 * 1024 * 1024) {
+          document.getElementById('tweets-list').innerHTML += '<div style="color: #7CFC00;">File too large (max 5MB).</div>';
+          return;
+        }
+        if (!['image/jpeg', 'image/png', 'image/gif'].includes(file.type)) {
+          document.getElementById('tweets-list').innerHTML += '<div style="color: #7CFC00;">Invalid file type (JPEG, PNG, GIF only).</div>';
+          return;
+        }
+      }
+      const formData = new FormData();
+      formData.append('content', tweetText);
+      if (fileInput.files.length > 0) {
+        formData.append('file', fileInput.files[0]);
+      }
+      try {
+        const response = await fetchWithTimeout('/api/tweets', {
+          method: 'POST',
+          body: formData
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          if (DEBUG) console.error('Tweet error:', error);
+          document.getElementById('tweets-list').innerHTML += '<div style="color: #7CFC00;">Failed to post tweet. Please try again.</div>';
+          return;
+        }
+        document.getElementById('tweet-input').value = '';
+        fileInput.value = '';
+        toggleTweetForm();
+        renderTweets();
+      } catch (error) {
+        if (DEBUG) console.error('Error submitting tweet:', error);
+        document.getElementById('tweets-list').innerHTML += '<div style="color: #7CFC00;">Failed to post tweet. Please try again.</div>';
+      }
+    }
+
+    async function renderTweets() {
+      if (DEBUG) console.log('renderTweets called');
+      const tweetList = document.getElementById('tweets-list');
+      tweetList.innerHTML = '';
+      const tweets = await fetchTweets();
+      tweets.forEach(tweet => {
+        const tweetDiv = document.createElement('div');
+        tweetDiv.className = 'tweet';
+        tweetDiv.setAttribute('role', 'button');
+        tweetDiv.setAttribute('tabindex', '0');
+        tweetDiv.setAttribute('aria-label', `View tweet by ${escapeHtml(tweet.username)}`);
+        tweetDiv.onclick = () => toggleTweetComments(tweet.id);
+        tweetDiv.onkeypress = (e) => { if (e.key === 'Enter' || e.key === ' ') toggleTweetComments(tweet.id); };
+        let fileHtml = tweet.file ? 
+          (tweet.file.type.startsWith('image/') ? 
+          `<div class="tweet-file"><img src="${escapeHtml(tweet.file.url)}" alt="Uploaded image"></div>` : 
+          `<div class="tweet-file"><a href="${escapeHtml(tweet.file.url)}" download="${escapeHtml(tweet.file.name)}">${escapeHtml(tweet.file.name)}</a></div>`) : '';
+        tweetDiv.innerHTML = `
+          <span class="tweet-username">${escapeHtml(tweet.username)}</span>
+          <div class="tweet-content-wrapper">
+            <span class="tweet-content">${escapeHtml(tweet.content)}</span>
+            ${fileHtml}
+            <div class="tweet-meta">
+              <span onclick="toggleTweetCommentForm(${tweet.id}); event.stopPropagation()" aria-label="Comment on tweet">Comment <span class="count">${tweet.comments.length}</span></span>
+              <span onclick="goodTweet(${tweet.id}); event.stopPropagation()" aria-label="Support tweet">Support <span class="count">${tweet.goodCount}</span></span>
+              <span onclick="retweetTweet(${tweet.id}); event.stopPropagation()" aria-label="Repeat tweet">Repeat <span class="count">${tweet.retweetCount}</span></span>
+              <span>${getElapsedTime(tweet.timestamp)}</span>
+            </div>
+            <div class="tweet-comment-form" id="tweet-comment-form-${tweet.id}">
+              <textarea placeholder="Comment..." aria-label="Tweet Comment"></textarea>
+              <span class="submit-tweet-comment" role="button" tabindex="0" aria-label="Submit Tweet Comment" onclick="submitTweetComment(${tweet.id}); event.stopPropagation()">✓</span>
+            </div>
+            <div class="tweet-comments" id="tweet-comments-${tweet.id}">
+              ${tweet.comments.map(comment => `
+                <div class="tweet-comment">
+                  <span class="comment-username">👤</span>
+                  <span class="tweet-comment-content">${escapeHtml(comment.content)}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+        tweetList.appendChild(tweetDiv);
+      });
+    }
+
+    function toggleTweetComments(tweetId) {
+      if (DEBUG) console.log('toggleTweetComments called:', tweetId);
+      const comments = document.getElementById(`tweet-comments-${tweetId}`);
+      comments.style.display = comments.style.display === 'block' ? 'none' : 'block';
+    }
+
+    async function toggleTweetCommentForm(tweetId) {
+      if (DEBUG) console.log('toggleTweetCommentForm called:', tweetId);
+      const form = document.getElementById(`tweet-comment-form-${tweetId}`);
+      form.style.display = form.style.display === 'block' ? 'none' : 'block';
+      if (form.style.display === 'block') {
+        form.querySelector('textarea').focus();
+      }
+    }
+
+    async function submitTweetComment(tweetId) {
+      if (DEBUG) console.log('submitTweetComment called:', tweetId);
+      const commentText = document.getElementById(`tweet-comment-form-${tweetId}`).querySelector('textarea').value.trim();
+      if (!commentText) return;
+      try {
+        const response = await fetchWithTimeout(`/api/tweets/${tweetId}/comments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: commentText })
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          if (DEBUG) console.error('Tweet comment error:', error);
+          document.getElementById('tweets-list').innerHTML += '<div style="color: #7CFC00;">Failed to post comment. Please try again.</div>';
+          return;
+        }
+        toggleTweetCommentForm(tweetId);
+        renderTweets();
+      } catch (error) {
+        if (DEBUG) console.error('Error submitting tweet comment:', error);
+        document.getElementById('tweets-list').innerHTML += '<div style="color: #7CFC00;">Failed to post comment. Please try again.</div>';
+      }
+    }
+
+    async function retweetTweet(tweetId) {
+      if (DEBUG) console.log('retweetTweet called:', tweetId);
+      if (retweetedTweets.has(tweetId)) return;
+      try {
+        const response = await fetchWithTimeout(`/api/tweets/${tweetId}/retweet`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          if (DEBUG) console.error('Retweet error:', error);
+          document.getElementById('tweets-list').innerHTML += '<div style="color: #7CFC00;">Failed to retweet. Please try again.</div>';
+          return;
+        }
+        retweetedTweets.add(tweetId);
+        renderTweets();
+      } catch (error) {
+        if (DEBUG) console.error('Error retweeting:', error);
+        document.getElementById('tweets-list').innerHTML += '<div style="color: #7CFC00;">Failed to retweet. Please try again.</div>';
+      }
+    }
+
+    async function goodTweet(tweetId) {
+      if (DEBUG) console.log('goodTweet called:', tweetId);
+      if (likedTweets.has(tweetId)) return;
+      try {
+        const response = await fetchWithTimeout(`/api/tweets/${tweetId}/good`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          if (DEBUG) console.error('Good tweet error:', error);
+          document.getElementById('tweets-list').innerHTML += '<div style="color: #7CFC00;">Failed to like tweet. Please try again.</div>';
+          return;
+        }
+        likedTweets.add(tweetId);
+        renderTweets();
+      } catch (error) {
+        if (DEBUG) console.error('Error liking tweet:', error);
+        document.getElementById('tweets-list').innerHTML += '<div style="color: #7CFC00;">Failed to like tweet. Please try again.</div>';
+      }
+    }
+
+    async function renderMainPage() {
+      if (DEBUG) console.log('renderMainPage called');
+      const mainPage = document.getElementById('main-page');
+      mainPage.innerHTML = '';
+      const bills = await fetchBills();
+      bills.sort((a, b) => b.timestamp - a.timestamp);
+      bills.forEach(bill => {
+        const item = document.createElement('div');
+        item.className = 'proposal-item';
+        item.setAttribute('role', 'button');
+        item.setAttribute('tabindex', '0');
+        item.setAttribute('aria-label', `View ${escapeHtml(bill.title)}`);
+        item.onclick = () => showBillDetail(bill.id);
+        item.onkeypress = (e) => { if (e.key === 'Enter' || e.key === ' ') showBillDetail(bill.id); };
+        item.innerHTML = `
+          <div class="proposal-title">${escapeHtml(bill.title)}</div>
+          <div class="proposal-stats">
+            <span class="support-text">${bill.support.toLocaleString()}</span>
+            <span class="against-text">${bill.against.toLocaleString()}</span>
+          </div>
+        `;
+        mainPage.appendChild(item);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      const searchBar = document.getElementById('search-bar');
+      const commentFileInput = document.getElementById('comment-file');
+      const tweetFileInput = document.getElementById('tweet-file');
+      const commentFileLabel = document.getElementById('comment-file-label');
+      const tweetFileLabel = document.getElementById('tweet-file-label');
+
+      if (searchBar) searchBar.addEventListener('input', searchContent);
+      else if (DEBUG) console.error('searchBar not found');
+      if (commentFileLabel) commentFileLabel.addEventListener('click', () => commentFileInput.click());
+      else if (DEBUG) console.error('commentFileLabel not found');
+      if (tweetFileLabel) tweetFileLabel.addEventListener('click', () => tweetFileInput.click());
+      else if (DEBUG) console.error('tweetFileLabel not found');
+
+      renderMainPage();
+      renderTweets();
+    });
+  </script>
+</body>
+</html>
