@@ -24,6 +24,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 application = Flask(__name__, static_folder='static', template_folder='templates')
+application.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://DEATHBILL911:Deathbill911@127.0.0.1:3306/deathbill_db'
+
 
 # CORS設定（開発用にワイルドカード、本番ではdeathbill.earthに制限）
 CORS(application, resources={r"/api/*": {"origins": "*"}})
