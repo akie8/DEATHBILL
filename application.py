@@ -132,6 +132,7 @@ def initialize_database():
                 ]
                 db.session.bulk_save_objects(bills)
                 logger.info("Inserted initial bills")
+
             if not Tweet.query.first():
                 tweets = [
                     Tweet(id=1, username="👤", content="Politician X proposed a policy to cut public transport funding. Total trash! 🗑️",
@@ -146,6 +147,7 @@ def initialize_database():
                 ]
                 db.session.bulk_save_objects(tweet_comments)
                 logger.info("Inserted initial tweets and comments")
+
             db.session.commit()
         logger.info("Database initialized successfully")
     except (SQLAlchemyError, pymysql.err.OperationalError) as e:
