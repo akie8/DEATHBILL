@@ -1,4 +1,3 @@
-# wsgi.py
 from urllib.parse import quote
 
 class ClosingIterator:
@@ -17,7 +16,6 @@ class ClosingIterator:
                 pass
 
 def get_current_url(environ, root_only=False, strip_querystring=False):
-    """WSGI環境から現在のURLを組み立てる関数"""
     scheme = environ.get('wsgi.url_scheme', 'http')
     host = environ.get('HTTP_HOST')
     if not host:
@@ -29,7 +27,6 @@ def get_current_url(environ, root_only=False, strip_querystring=False):
     if root_only:
         return url + '/'
 
-    # SCRIPT_NAME と PATH_INFO を組み合わせてパスを作成
     path = quote(environ.get('SCRIPT_NAME', ''))
     path += quote(environ.get('PATH_INFO', ''))
     url += path
@@ -40,3 +37,5 @@ def get_current_url(environ, root_only=False, strip_querystring=False):
             url += '?' + qs
 
     return url
+
+from application import application  # ← これを忘れずに！
